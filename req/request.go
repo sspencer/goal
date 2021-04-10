@@ -37,8 +37,8 @@ type SyntaxError struct {
 // RequestFunc allows variable numbers of args in New to configure requests.
 // For example:
 //   r0 := req.New()
-//   r1 := req.New(req.Curl(true), req.SkipRedirects(true))
-//   r2 := req.New(req.CurlHeader(true))
+//   r1 := req.New().Curl()        // enable curl logging
+//   r2 := req.New().CurlHeader()  // enable curl + headers logging
 type RequestFunc func(*Request)
 
 // Request is used to set some configuration options on the HTTP request.
@@ -54,31 +54,40 @@ type Request struct {
 //   curl header (and body): false
 //   timeout: 30 seconds
 //   skip redirects: false
-func New(options ...func(*Request)) *Request {
+func New() *Request {
 	r := &Request{}
 	r.curl = false
 	r.curlHeader = false
 	r.timeout = 30 * time.Second
 	r.skipRedirects = false
 
-	for _, opt := range options {
-		opt(r)
-	}
-
 	return r
 }
 
-// Curl enables or disables Curl logging
-func Curl(b bool) RequestFunc { return func(r *Request) { r.curl = b } }
+// Curl enables curl like logging
+func (c *Request) Curl() *Request {
+	c.curl = true
+	return c
+}
 
-// CurlHeader enables or disables Curl logging with extra Header printout
-func CurlHeader(b bool) RequestFunc { return func(r *Request) { r.curlHeader = b } }
+// CurlHeader adds headers to curl logging
+func (c *Request) CurlHeader() *Request {
+	c.curl = true
+	c.curlHeader = true
+	return c
+}
 
 // Timeout changes the default request timeout (30 seconds)
-func Timeout(d time.Duration) RequestFunc { return func(r *Request) { r.timeout = d } }
+func (c *Request) Timeout(d time.Duration) *Request {
+	c.timeout = d
+	return c
+}
 
-// SkipRedirects enables or disables the skip redirects directive
-func SkipRedirects(b bool) RequestFunc { return func(r *Request) { r.skipRedirects = b } }
+// SkipRedirects enables the flag to skip redirects
+func (c *Request) SkipRedirects() *Request {
+	c.skipRedirects = true
+	return c
+}
 
 // IsSuccess returns TRUE if the status code is 2XX
 func IsSuccess(statusCode int) bool {
@@ -190,8 +199,9 @@ func (c *Request) logger(r *http.Request, resp *http.Response, data io.Reader) {
 		return
 	}
 
-	indent := strings.Repeat(" ", 4)
-
+	curlIndent := strings.Repeat(" ", 4)
+	jsonIndent := strings.Repeat(" ", 3)
+	
 	// -s silences output (progress meter and errors)
 	// -S "unsilences" errors
 	buf := bytes.NewBufferString("\ncurl -sS")
@@ -205,7 +215,7 @@ func (c *Request) logger(r *http.Request, resp *http.Response, data io.Reader) {
 	buf.WriteString(" \\\n")
 
 	for n, v := range r.Header {
-		buf.WriteString(indent)
+		buf.WriteString(curlIndent)
 		buf.WriteString("-H'")
 		buf.WriteString(n)
 		buf.WriteString(": ")
@@ -218,7 +228,7 @@ func (c *Request) logger(r *http.Request, resp *http.Response, data io.Reader) {
 		if err == nil {
 			str := string(b)
 			if str != "" {
-				buf.WriteString(indent)
+				buf.WriteString(curlIndent)
 				buf.WriteString("-d'")
 				buf.WriteString(strings.TrimSpace(str))
 				buf.WriteString("' \\\n")
@@ -228,7 +238,7 @@ func (c *Request) logger(r *http.Request, resp *http.Response, data io.Reader) {
 
 	// curl -XGET ...
 	//     "<THE URL>"   <--
-	buf.WriteString(indent)
+	buf.WriteString(curlIndent)
 	buf.WriteString("\"")
 	buf.WriteString(r.URL.String())
 	buf.WriteString("\"")
@@ -254,7 +264,7 @@ func (c *Request) logger(r *http.Request, resp *http.Response, data io.Reader) {
 				buf.WriteString("\n")
 			}
 
-			if json, err := indentJSON(body); err != nil {
+			if json, err := indentJSON(body, jsonIndent); err != nil {
 				buf.WriteString(string(body))
 			} else {
 				buf.WriteString(string(json))
@@ -267,8 +277,8 @@ func (c *Request) logger(r *http.Request, resp *http.Response, data io.Reader) {
 	log.Println(buf.String())
 }
 
-func indentJSON(b []byte) ([]byte, error) {
+func indentJSON(b []byte, jsonIndent string) ([]byte, error) {
 	var out bytes.Buffer
-	err := json.Indent(&out, b, "", "   ")
+	err := json.Indent(&out, b, "", jsonIndent)
 	return out.Bytes(), err
 }

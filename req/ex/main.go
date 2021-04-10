@@ -14,7 +14,7 @@ type Movie struct {
 }
 
 type MovieResponse struct {
-	Page       string  `json:"page"`
+	Page       int     `json:"page"`
 	PerPage    int     `json:"per_page"`
 	Total      int     `json:"total"`
 	TotalPages int     `json:"total_pages"`
@@ -24,7 +24,7 @@ type MovieResponse struct {
 func main() {
 	url := "https://jsonmock.hackerrank.com/api/movies/search/?Title=world&page=1"
 
-	r := req.New()
+	r := req.New().CurlHeader()
 	resp, err := r.Get(url)
 	if err != nil {
 		fmt.Println(err)
@@ -42,7 +42,7 @@ func main() {
 		os.Exit(3)
 	}
 
-	fmt.Printf("Movie page: %s, per_page: %d, total: %d, total_pages: %d\n", mr.Page, mr.PerPage, mr.Total, mr.TotalPages)
+	fmt.Printf("Movie page: %d, per_page: %d, total: %d, total_pages: %d\n", mr.Page, mr.PerPage, mr.Total, mr.TotalPages)
 	for _, m := range mr.Data {
 		fmt.Printf("  %d: %q\n", m.Year, m.Title)
 	}
